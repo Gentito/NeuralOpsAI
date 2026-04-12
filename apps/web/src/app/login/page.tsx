@@ -1,16 +1,18 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { motion } from "framer-motion"
+import { LogIn, UserPlus, LogOut, Mail, Lock, ShieldAlert, CheckCircle2 } from "lucide-react"
 
-import { Card } from "@/components/Card"
 import { supabaseClient } from "@/lib/supabase"
 
 export default function LoginPage() {
   const supabase = useMemo(() => supabaseClient(), [])
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useState<{ type: "error" | "success" | "info"; message: string } | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   async function refreshSession() {
     if (!supabase) return
@@ -33,96 +35,226 @@ export default function LoginPage() {
     return () => data.subscription.unsubscribe()
   }, [supabase])
 
-  async function signIn() {
+  async function signIn(e?: React.FormEvent) {
+    if (e) e.preventDefault()
     setStatus(null)
-    if (!supabase) return
+    setIsLoading(true)
+    if (!supabase) {
+      setIsLoading(false)
+      return
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setStatus(error.message)
+      setStatus({ type: "error", message: error.message })
+      setIsLoading(false)
       return
     }
     await refreshSession()
-    setStatus("Signed in")
+    setStatus({ type: "success", message: "Successfully signed in." })
+    setIsLoading(false)
   }
 
   async function signUp() {
     setStatus(null)
-    if (!supabase) return
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) {
-      setStatus(error.message)
+    setIsLoading(true)
+    if (!supabase) {
+      setIsLoading(false)
       return
     }
-    setStatus("Sign-up successful. Check email if confirmation is enabled.")
+    const { error } = await supabase.auth.signUp({ email, password })
+    if (error) {
+      setStatus({ type: "error", message: error.message })
+      setIsLoading(false)
+      return
+    }
+    setStatus({ type: "success", message: "Sign-up successful. Check email if confirmation is enabled." })
     await refreshSession()
+    setIsLoading(false)
   }
 
   async function signOut() {
     setStatus(null)
-    if (!supabase) return
+    setIsLoading(true)
+    if (!supabase) {
+      setIsLoading(false)
+      return
+    }
     await supabase.auth.signOut()
     await refreshSession()
-    setStatus("Signed out")
+    setStatus({ type: "info", message: "You have been signed out." })
+    setIsLoading(false)
   }
 
   return (
-    <main className="space-y-6">
-      <h2 className="text-xl font-semibold">Login</h2>
+    <main className="relative min-h-[calc(100vh-12rem)] flex items-center justify-center overflow-hidden rounded-xl border border-slate-800/50 bg-slate-950">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 z-0">
+        <motion.div
+          animate={{ 
+            scale: [1, 1.2, 1],
+            opacity: [0.1, 0.2, 0.1],
+            rotate: [0, 90, 0]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-[20%] -left-[10%] h-[70%] w-[50%] rounded-full bg-blue-900/20 blur-[120px]"
+        />
+        <motion.div
+          animate={{ 
+            scale: [1, 1.5, 1],
+            opacity: [0.1, 0.15, 0.1],
+            rotate: [0, -90, 0]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute -bottom-[20%] -right-[10%] h-[70%] w-[50%] rounded-full bg-indigo-900/20 blur-[120px]"
+        />
+      </div>
 
-      {!supabase ? (
-        <div className="rounded-md border border-yellow-900 bg-yellow-950/40 p-4 text-sm text-yellow-200">
-          Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in apps/web/.env.local, then restart the web
-          server.
-        </div>
-      ) : null}
+      <div className="relative z-10 w-full max-w-md px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8 text-center"
+        >
+          <h2 className="text-3xl font-bold tracking-tight text-white">Welcome Back</h2>
+          <p className="mt-2 text-sm text-slate-400">Sign in to access your NeuralOps dashboard</p>
+        </motion.div>
 
-      {status ? (
-        <div className="rounded-md border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-200">{status}</div>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Account">
-          <div className="text-sm text-slate-200">{userEmail ? `Signed in as ${userEmail}` : "Not signed in"}</div>
-          <button
-            className="mt-3 rounded-md border border-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
-            onClick={signOut}
-            disabled={!userEmail}
+        {!supabase && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="mb-6 flex items-start gap-3 rounded-lg border border-yellow-900/50 bg-yellow-950/20 p-4 text-sm text-yellow-200 backdrop-blur-sm"
           >
-            Sign out
-          </button>
-        </Card>
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-yellow-500" />
+            <p>Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in apps/web/.env.local, then restart the server.</p>
+          </motion.div>
+        )}
 
-        <Card title="Email + Password">
-          <div className="space-y-3">
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
-            />
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              type="password"
-              className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
-            />
-            <div className="flex gap-2">
+        {status && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+            className={`mb-6 flex items-center gap-3 rounded-lg border p-4 text-sm backdrop-blur-sm
+              ${status.type === 'error' ? 'border-red-900/50 bg-red-950/20 text-red-200' : ''}
+              ${status.type === 'success' ? 'border-emerald-900/50 bg-emerald-950/20 text-emerald-200' : ''}
+              ${status.type === 'info' ? 'border-blue-900/50 bg-blue-950/20 text-blue-200' : ''}
+            `}
+          >
+            {status.type === 'error' && <ShieldAlert className="h-5 w-5 shrink-0 text-red-500" />}
+            {status.type === 'success' && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />}
+            {status.type === 'info' && <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-500" />}
+            <p>{status.message}</p>
+          </motion.div>
+        )}
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40 shadow-2xl backdrop-blur-xl"
+        >
+          {userEmail ? (
+            <div className="p-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
+                <CheckCircle2 className="h-8 w-8 text-blue-400" />
+              </div>
+              <h3 className="mb-2 text-lg font-medium text-white">Signed in Successfully</h3>
+              <p className="mb-8 text-sm text-slate-400">{userEmail}</p>
+              
               <button
-                className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-white"
-                onClick={signIn}
+                onClick={signOut}
+                disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50"
               >
-                Sign in
-              </button>
-              <button
-                className="rounded-md border border-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
-                onClick={signUp}
-              >
-                Sign up
+                {isLoading ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="h-4 w-4 rounded-full border-2 border-slate-400 border-t-transparent" />
+                ) : (
+                  <>
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </>
+                )}
               </button>
             </div>
-          </div>
-        </Card>
+          ) : (
+            <div className="p-8">
+              <form onSubmit={signIn} className="space-y-5">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-400" htmlFor="email">Email</label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Mail className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-700 bg-slate-950/50 py-2.5 pl-10 pr-3 text-sm text-slate-200 placeholder-slate-500 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="you@company.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-400" htmlFor="password">Password</label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      id="password"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-700 bg-slate-950/50 py-2.5 pl-10 pr-3 text-sm text-slate-200 placeholder-slate-500 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={isLoading || !email || !password}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                      <>
+                        <LogIn className="h-4 w-4" />
+                        Sign in
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              <div className="relative mt-8">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-800"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-slate-900 px-2 text-slate-400">New to NeuralOps?</span>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={signUp}
+                  disabled={isLoading || !email || !password}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-transparent px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Create an account
+                </button>
+              </div>
+            </div>
+          )}
+        </motion.div>
       </div>
     </main>
   )
