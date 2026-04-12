@@ -1,25 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 
+import { Card } from "@/components/Card"
 import { fetchJson } from "@/lib/api"
 
 type AnyItem = Record<string, unknown>
-
-function Card({
-  title,
-  children
-}: {
-  title: string
-  children: React.ReactNode
-}): JSX.Element {
-  return (
-    <section className="rounded-lg border border-slate-800 bg-slate-950/50 p-5">
-      <h2 className="mb-3 text-sm font-medium text-slate-200">{title}</h2>
-      {children}
-    </section>
-  )
-}
 
 export default function HomePage(): JSX.Element {
   const [agents, setAgents] = useState<AnyItem[]>([])
@@ -67,12 +54,14 @@ export default function HomePage(): JSX.Element {
   async function createTask(form: FormData) {
     const title = String(form.get("title") || "").trim()
     const assignedTo = String(form.get("assignedTo") || "").trim()
+    const projectId = String(form.get("projectId") || "").trim()
     if (!title) return
     await fetchJson("/tasks", {
       method: "POST",
       body: JSON.stringify({
         title,
         assignedTo: assignedTo || null,
+        projectId: projectId || null,
         status: "todo"
       })
     })
@@ -89,6 +78,17 @@ export default function HomePage(): JSX.Element {
     await loadAll()
   }
 
+  async function orchestrate(form: FormData) {
+    const objective = String(form.get("objective") || "").trim()
+    const projectId = String(form.get("projectId") || "").trim()
+    if (!objective) return
+    await fetchJson("/orchestrate", {
+      method: "POST",
+      body: JSON.stringify({ objective, projectId: projectId || null })
+    })
+    await loadAll()
+  }
+
   return (
     <main className="space-y-6">
       {error ? (
@@ -99,23 +99,33 @@ export default function HomePage(): JSX.Element {
 
       <div className="grid gap-4 md:grid-cols-5">
         <Card title="Agents">
-          <div className="text-3xl font-semibold">{counts.agents}</div>
+          <Link className="text-3xl font-semibold hover:underline" href="/chat">
+            {counts.agents}
+          </Link>
         </Card>
         <Card title="Projects">
-          <div className="text-3xl font-semibold">{counts.projects}</div>
+          <Link className="text-3xl font-semibold hover:underline" href="/projects">
+            {counts.projects}
+          </Link>
         </Card>
         <Card title="Tasks">
-          <div className="text-3xl font-semibold">{counts.tasks}</div>
+          <Link className="text-3xl font-semibold hover:underline" href="/tasks">
+            {counts.tasks}
+          </Link>
         </Card>
         <Card title="Clients">
-          <div className="text-3xl font-semibold">{counts.clients}</div>
+          <Link className="text-3xl font-semibold hover:underline" href="/clients">
+            {counts.clients}
+          </Link>
         </Card>
         <Card title="Invoices">
-          <div className="text-3xl font-semibold">{counts.invoices}</div>
+          <Link className="text-3xl font-semibold hover:underline" href="/invoices">
+            {counts.invoices}
+          </Link>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card title="Create Task">
           <form
             className="space-y-3"
@@ -131,6 +141,18 @@ export default function HomePage(): JSX.Element {
               placeholder="Task title"
               className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
             />
+            <select
+              name="projectId"
+              className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
+              defaultValue=""
+            >
+              <option value="">Project (optional)</option>
+              {projects.map((p) => (
+                <option key={String(p.id)} value={String(p.id)}>
+                  {String(p.name || p.id)}
+                </option>
+              ))}
+            </select>
             <input
               name="assignedTo"
               placeholder="Assigned to (optional)"
@@ -165,6 +187,42 @@ export default function HomePage(): JSX.Element {
               className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-white"
             >
               Create project
+            </button>
+          </form>
+        </Card>
+
+        <Card title="Orchestrate">
+          <form
+            className="space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const form = new FormData(e.currentTarget)
+              await orchestrate(form)
+              e.currentTarget.reset()
+            }}
+          >
+            <input
+              name="objective"
+              placeholder="Objective (e.g. Build onboarding flow)"
+              className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
+            />
+            <select
+              name="projectId"
+              className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
+              defaultValue=""
+            >
+              <option value="">Project (optional)</option>
+              {projects.map((p) => (
+                <option key={String(p.id)} value={String(p.id)}>
+                  {String(p.name || p.id)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-white"
+            >
+              Create plan tasks
             </button>
           </form>
         </Card>

@@ -54,6 +54,13 @@ def init_db(db_path: str) -> None:
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+              id TEXT PRIMARY KEY,
+              payload TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
             """
         )
         _seed_agents(conn)
@@ -73,6 +80,12 @@ def list_items(table: str) -> list[dict[str, Any]]:
             f"SELECT id, payload, created_at, updated_at FROM {table} ORDER BY created_at DESC"
         ).fetchall()
     return [_row_to_item(r) for r in rows]
+
+
+def count_items(table: str) -> int:
+    with _connect() as conn:
+        row = conn.execute(f"SELECT COUNT(1) AS c FROM {table}").fetchone()
+        return int(row["c"])
 
 
 def get_item(table: str, item_id: str) -> dict[str, Any] | None:
@@ -166,4 +179,3 @@ def _seed_agents(conn: sqlite3.Connection) -> None:
             (item_id, json.dumps(payload), now, now),
         )
     conn.commit()
-
