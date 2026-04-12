@@ -37,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <NavLink href="/clients" label="Clients" />
               <NavLink href="/invoices" label="Invoices" />
               <NavLink href="/chat" label="Chat" />
+              <NavLink href="/login" label="Login" />
             </nav>
           </header>
           {children}

@@ -3,7 +3,7 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
-from .db import count_items, create_item, delete_item, get_item, list_items, update_item
+from .store import count_items, create_item, delete_item, get_item, list_items, require_user, update_item
 
 
 api = Blueprint("api", __name__)
@@ -38,6 +38,32 @@ def health() -> tuple[Response, int]:
     return jsonify({"ok": True}), 200
 
 
+def _auth_token() -> str | None:
+    auth = request.headers.get("Authorization")
+    if not auth:
+        return None
+    if not auth.lower().startswith("bearer "):
+        return None
+    return auth.split(" ", 1)[1].strip()
+
+
+@api.errorhandler(PermissionError)
+def _auth_error(_err: PermissionError):
+    return jsonify({"error": "unauthorized"}), 401
+
+
+@api.before_request
+def _auth_guard() -> None:
+    if request.method == "OPTIONS":
+        return
+    if request.path in ("/health",):
+        return
+    if request.path.startswith("/agents") and request.method == "GET":
+        return
+
+    require_user(request.headers.get("Authorization"))
+
+
 def _parse_json() -> dict[str, Any]:
     data = request.get_json(silent=True)
     if isinstance(data, dict):
@@ -64,34 +90,39 @@ def _register_crud(resource: str, filter_keys: tuple[str, ...]) -> None:
     table = resource
 
     def _list_view() -> tuple[Response, int]:
+        token = _auth_token()
         filters: dict[str, str] = {}
         for k in filter_keys:
             val = request.args.get(k)
             if val is not None:
                 filters[k] = str(val)
-        items = list_items(table)
+        items = list_items(table, token=token, filters=filters)
         return jsonify(_filter_items(items, filters)), 200
 
     def _create_view() -> tuple[Response, int]:
+        token = _auth_token()
         payload = _parse_json()
-        item = create_item(table, payload)
+        item = create_item(table, payload, token=token)
         return jsonify(item), 201
 
     def _get_view(item_id: str) -> tuple[Response, int]:
-        item = get_item(table, item_id)
+        token = _auth_token()
+        item = get_item(table, item_id, token=token)
         if not item:
             return jsonify({"error": "not_found"}), 404
         return jsonify(item), 200
 
     def _update_view(item_id: str) -> tuple[Response, int]:
+        token = _auth_token()
         payload = _parse_json()
-        item = update_item(table, item_id, payload)
+        item = update_item(table, item_id, payload, token=token)
         if not item:
             return jsonify({"error": "not_found"}), 404
         return jsonify(item), 200
 
     def _delete_view(item_id: str) -> tuple[Response, int]:
-        ok = delete_item(table, item_id)
+        token = _auth_token()
+        ok = delete_item(table, item_id, token=token)
         if not ok:
             return jsonify({"error": "not_found"}), 404
         return jsonify({"ok": True}), 200
@@ -148,7 +179,8 @@ def _conversation_key(project_id: str | None, client_id: str | None) -> str:
 
 
 def _next_invoice_number() -> str:
-    n = count_items("invoices") + 1
+    token = _auth_token()
+    n = count_items("invoices", token=token) + 1
     return f"INV-{n:06d}"
 
 
@@ -190,6 +222,7 @@ def _compute_invoice_totals(line_items: list[dict[str, Any]], tax_rate: float) -
 
 @api.post("/invoices/generate")
 def generate_invoice() -> tuple[Response, int]:
+    token = _auth_token()
     payload = _parse_json()
     client_id = payload.get("clientId")
     project_id = payload.get("projectId")
@@ -215,12 +248,13 @@ def generate_invoice() -> tuple[Response, int]:
         **totals,
     }
 
-    created = create_item("invoices", invoice_payload)
+    created = create_item("invoices", invoice_payload, token=token)
     return jsonify(created), 201
 
 
 @api.post("/orchestrate")
 def orchestrate() -> tuple[Response, int]:
+    token = _auth_token()
     payload = _parse_json()
     objective = str(payload.get("objective") or "").strip()
     if not objective:
@@ -251,6 +285,7 @@ def orchestrate() -> tuple[Response, int]:
                     "clientId": client_id,
                     "source": "orchestrate",
                 },
+                token=token,
             )
         )
 
@@ -259,6 +294,7 @@ def orchestrate() -> tuple[Response, int]:
 
 @api.post("/chat")
 def chat() -> tuple[Response, int]:
+    token = _auth_token()
     payload = _parse_json()
     message = str(payload.get("message") or "")
     agent = str(payload.get("agent") or "Chief of Staff Agent")
@@ -281,6 +317,7 @@ def chat() -> tuple[Response, int]:
             "agent": agent,
             "content": message,
         },
+        token=token,
     )
     agent_msg = create_item(
         "chat_messages",
@@ -292,6 +329,7 @@ def chat() -> tuple[Response, int]:
             "agent": agent,
             "content": response_text,
         },
+        token=token,
     )
 
     return (
@@ -310,10 +348,11 @@ def chat() -> tuple[Response, int]:
 
 @api.get("/chat/messages")
 def list_chat_messages() -> tuple[Response, int]:
+    token = _auth_token()
     project_id = request.args.get("projectId")
     client_id = request.args.get("clientId")
     conversation_key = request.args.get("conversationKey") or _conversation_key(project_id, client_id)
 
-    items = list_items("chat_messages")
+    items = list_items("chat_messages", token=token, filters={"conversationKey": str(conversation_key)})
     filtered = _filter_items(items, {"conversationKey": str(conversation_key)})
     return jsonify(list(reversed(filtered))), 200

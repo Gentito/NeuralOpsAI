@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 
-from .db import init_db
+from .store import init_store
 from .routes import api
 
 
@@ -12,10 +12,8 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
 
-    db_path = os.environ.get("DATABASE_PATH", "./neuralops.sqlite3")
-    init_db(db_path)
+    init_store()
 
     app.register_blueprint(api)
 
     return app
-
