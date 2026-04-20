@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
 
 export function supabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
@@ -8,5 +8,5 @@ export function supabaseConfig() {
 
 export function supabaseClient() {
   const { url, key } = supabaseConfig()
-  return url && key ? createClient(url, key) : null
+  return url && key ? createBrowserClient(url, key) : null
 }

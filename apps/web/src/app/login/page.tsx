@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { LogIn, UserPlus, LogOut, Mail, Lock, ShieldAlert, CheckCircle2 } from "lucide-react"
+import { LogIn, LogOut, Mail, Lock, ShieldAlert, CheckCircle2 } from "lucide-react"
+import Link from "next/link"
 
 import { supabaseClient } from "@/lib/supabase"
 
@@ -50,26 +51,24 @@ export default function LoginPage() {
       return
     }
     await refreshSession()
-    setStatus({ type: "success", message: "Successfully signed in." })
-    setIsLoading(false)
-  }
-
-  async function signUp() {
-    setStatus(null)
-    setIsLoading(true)
-    if (!supabase) {
+    const { data: userRes } = await supabase.auth.getUser()
+    const user = userRes.user
+    let role = (user?.user_metadata?.role as string | undefined) || null
+    if (!role && user) {
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+      role = (profile?.role as string | undefined) || null
+    }
+    if (role === "client") {
+      setStatus({ type: "error", message: "This login is for internal leadership only. Use the Client Portal login." })
+      await supabase.auth.signOut()
+      await refreshSession()
       setIsLoading(false)
       return
     }
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) {
-      setStatus({ type: "error", message: error.message })
-      setIsLoading(false)
-      return
-    }
-    setStatus({ type: "success", message: "Sign-up successful. Check email if confirmation is enabled." })
-    await refreshSession()
+    setStatus({ type: "success", message: "Signed in." })
     setIsLoading(false)
+    const next = new URLSearchParams(window.location.search).get("next")
+    window.location.href = next || "/dashboard"
   }
 
   async function signOut() {
@@ -116,8 +115,8 @@ export default function LoginPage() {
           transition={{ duration: 0.5 }}
           className="mb-8 text-center"
         >
-          <h2 className="text-3xl font-bold tracking-tight text-white">Welcome Back</h2>
-          <p className="mt-2 text-sm text-slate-400">Sign in to access your NeuralOps dashboard</p>
+          <h2 className="text-3xl font-bold tracking-tight text-white">Leadership Login</h2>
+          <p className="mt-2 text-sm text-slate-400">CEO and directors only</p>
         </motion.div>
 
         {!supabase && (
@@ -230,27 +229,19 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <Link href="/forgot-password" className="text-xs text-slate-300 hover:text-white">
+                    Forgot password?
+                  </Link>
+                  <Link href="/portal/login" className="text-xs text-slate-400 hover:text-slate-200">
+                    Client portal login
+                  </Link>
+                </div>
               </form>
 
-              <div className="relative mt-8">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800"></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-slate-900 px-2 text-slate-400">New to NeuralOps?</span>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={signUp}
-                  disabled={isLoading || !email || !password}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-transparent px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Create an account
-                </button>
+              <div className="mt-6 text-center text-xs text-slate-500">
+                New leadership accounts are provisioned by an administrator.
               </div>
             </div>
           )}
