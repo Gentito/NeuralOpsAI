@@ -18,6 +18,35 @@ function sha256Hex(input: string) {
   return createHash("sha256").update(input).digest("hex")
 }
 
+export async function GET() {
+  const supabase = supabaseServerClient()
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 })
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
+
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+  if (!profile?.role || !["internal_admin", "super_admin"].includes(profile.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  const admin = supabaseAdminClient()
+  if (!admin) return NextResponse.json({ error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 })
+
+  const { data: actors, error } = await admin
+    .from("system_actors")
+    .select("id, org_id, kind, name, status, permissions, created_at")
+    .order("created_at", { ascending: false })
+    .limit(200)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  return NextResponse.json({ actors: actors || [] })
+}
+
 export async function POST(request: Request) {
   const supabase = supabaseServerClient()
   if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 })
@@ -84,4 +113,3 @@ export async function POST(request: Request) {
     }
   })
 }
-
